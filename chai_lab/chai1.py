@@ -107,6 +107,10 @@ from chai_lab.utils.plot import plot_msa
 from chai_lab.utils.tensor_utils import move_data_to_device, set_seed, und_self
 from chai_lab.utils.typing import Float, typecheck
 
+# Added
+from chai_lab.ranking.pae import calculate_chain_pair_pae_min, calculate_pae_interaction
+from chai_lab.ranking.rasa import (calculate_surface_metrics)
+
 
 class UnsupportedInputError(RuntimeError):
     pass
@@ -514,6 +518,7 @@ def run_inference(
     seed: int | None = None,
     device: str | None = None,
     low_memory: bool = True,
+    binder_chain: str = "A",
 ) -> StructureCandidates:
     assert num_trunk_samples > 0 and num_diffn_samples > 0
     if output_dir.exists():
@@ -553,6 +558,7 @@ def run_inference(
             seed=seed + trunk_idx if seed is not None else None,
             device=torch_device,
             low_memory=low_memory,
+            binder_chain=binder_chain,
         )
         all_candidates.append(cand)
     return StructureCandidates.concat(all_candidates)
@@ -576,6 +582,7 @@ def run_folding_on_context(
     seed: int | None = None,
     device: torch.device | None = None,
     low_memory: bool,
+    binder_chain: str = "A",
 ) -> StructureCandidates:
     """
     Function for in-depth explorations.
@@ -953,6 +960,10 @@ def run_folding_on_context(
     cif_paths: list[Path] = []
     ranking_data: list[SampleRanking] = []
 
+    #! This expect the binder to come first!
+    binder_length = len(feature_context.chains[0].entity_data.full_sequence)
+    print(f"Binder length (first chain): {binder_length}")
+
     for idx in range(num_diffn_samples):
         ##
         ## Compute ranking scores
@@ -1014,7 +1025,106 @@ def run_folding_on_context(
 
         scores_out_path = output_dir.joinpath(f"scores.model_idx_{idx}.npz")
 
-        np.savez(scores_out_path, **get_scores(ranking_outputs))
+        binder_chain_index = ord(binder_chain) - ord('A')
+        print(f"Binder chain index: {binder_chain_index}")
+
+        #! SASA /rASA, Ranking score
+        sasa_per_residue, rasa_arrays, fraction_disordered_binder, fraction_disordered_complex = calculate_surface_metrics(cif_out_path)
+        # Ranking score complex, DONE
+        scores = get_scores(ranking_outputs)
+
+        ranking_score_complex = (
+            0.2 * scores["complex_ptm"]
+            + 0.8 * scores["interface_ptm"]
+            + 0.5 * fraction_disordered_complex
+            - 100 * scores["has_inter_chain_clashes"].astype(float)
+        )
+
+        # TODO Clashed score could be optimized
+        ranking_score_binder = (
+            0.2 * scores["per_chain_ptm"][0][binder_chain_index]
+            + 0.8 * scores["interface_ptm"]
+            + 0.5 * fraction_disordered_binder
+            - 100 * scores["has_inter_chain_clashes"].astype(float)
+        )
+
+        #! iptm_ptm
+        iptm_ptm = scores["complex_ptm"] + scores["interface_ptm"]
+
+        #! PAE values
+        # pae is a 2D array with shape (num_residues, num_residues) = a pae value for each pair of residues
+        pae = pae_scores[idx].cpu().numpy()
+
+        # Get all chain lengths
+        chain_lengths = [len(chain.entity_data.full_sequence) for chain in feature_context.chains]
+
+        #* Calculate minimum PAE for binder chain (1), each target chain(2+), and target global minimum, DONE
+        binder_pae_min, target_pae_mins, target_pae_global_min = calculate_chain_pair_pae_min(pae, chain_lengths)
+
+        #* Calculate interaction PAE values, DONE
+        pae_complex, pae_targets, pae_binder, pae_interaction, pae_interactions_per_target = calculate_pae_interaction(pae, chain_lengths)
+
+
+        #! PDE values
+        pde = pde_scores[idx].cpu().numpy()
+        binder_length = chain_lengths[0]
+        
+        # Calculate mean PAE for binder and all targets
+        pde_binder = np.mean(pde[:binder_length, :binder_length])
+        pde_targets = np.mean(pde[binder_length:, binder_length:])
+
+        np.savez(scores_out_path,
+                 **get_scores(ranking_outputs),
+                 iptm_ptm=iptm_ptm,
+                 pae_complex=pae_complex,
+                 pae_binder=pae_binder,
+                 pae_targets=pae_targets,
+                 pae_interaction=pae_interaction,
+                 pae_interactions_per_target=pae_interactions_per_target,
+                 binder_pae_min=binder_pae_min,
+                 target_pae_mins=target_pae_mins,
+                 target_pae_global_min=target_pae_global_min,
+                 pde_binder=pde_binder,
+                 pde_targets=pde_targets,
+                 ranking_score_complex=ranking_score_complex,
+                 ranking_score_binder=ranking_score_binder,
+                 fraction_disordered_complex=fraction_disordered_complex,
+                 fraction_disordered_binder=fraction_disordered_binder,
+                 pae=pae,
+                 pde=pde,
+                 )
+        
+
+        # All metrics:
+        #scores:
+            # aggregate_score
+            # complex_ptm
+            # interface_ptm
+            # per_chain_ptm
+            # per_chain_pair_iptm
+            # has_inter_chain_clashes
+            # chain_chain_clashes
+            # complex_plddt
+            # per_chain_plddt
+            # per_atom_plddt
+            #-
+            # iptm_ptm
+            # pae_complex
+            # pae_binder
+            # pae_targets
+            # pae_interaction_mean
+            # pae_interactions_per_target
+            # binder_pae_min
+            # target_pae_mins
+            # target_pae_global_min
+            # pde_binder
+            # pde_targets
+            # ranking_score_complex
+            # ranking_score_binder
+            # fraction_disordered_complex
+            # fraction_disordered_binder
+            # pae (2D array)
+            # pde (2D array)
 
     return StructureCandidates(
         cif_paths=cif_paths,

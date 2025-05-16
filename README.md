@@ -18,6 +18,11 @@ pip install chai_lab==0.6.1
 pip install git+https://github.com/chaidiscovery/chai-lab.git
 ```
 
+For the RASA caculation we need also
+```shell
+conda install conda-forge::freesasa
+```
+
 This Python package requires Linux, Python 3.10 or later, and a GPU with CUDA and bfloat16 support. We recommend using an A100 80GB or H100 80GB or L40S 48GB chip, but A10 and A30 will work for smaller complexes. Users have also reported success with consumer-grade RTX 4090.
 
 ## Running the model
@@ -58,6 +63,45 @@ To get the best performance, we recommend running the model with MSAs. The follo
 ```shell
 python examples/msas/predict_with_msas.py
 ```
+
+### Metrics
+*!The script assumes, that the binder chain is the first chain in the FASTA file!*
+
+The script writes also PDB file and writes the follwing metrics for each PDB/CIF file in the respective *.npz file:
+- aggregate_score
+- complex_ptm
+- interface_ptm
+- per_chain_ptm
+- per_chain_pair_iptm
+- has_inter_chain_clashes
+- chain_chain_clashes
+- complex_plddt
+- per_chain_plddt
+- per_atom_plddt
+- iptm_ptm
+- pae_complex
+- pae_binder
+- pae_targets
+- pae_interaction_mean
+- pae_interactions_per_target
+- binder_pae_min
+- target_pae_mins
+- target_pae_global_min
+- pde_binder
+- pde_targets
+- ranking_score_complex
+- ranking_score_binder
+- fraction_disordered_complex
+- fraction_disordered_binder
+- pae (2D array)
+- pde (2D array)
+
+### Calculate ChaiAI metrics
+- The calc_chaiai_metrics.py script calculates the ChaiAI metrics and prints them as json. The script does not print all metrics (e.g. not pae and pde arrays).
+- Flags:
+	- --save: Save the metrics as a json file. If not provided, the metrics are printed to the console.
+	- --plot: Plot the PAE and PDE maps.
+	- --output_dir: Output directory. If not provided, the directory of the *.npz file is used.
 
 For further instructions, see `"How can MSAs be provided to Chai-1?"` below.
 

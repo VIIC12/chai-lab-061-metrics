@@ -111,15 +111,26 @@ def rank(
         plddt_scores=plddt_scores,
     )
 
+#TODO Add these here, so they are part of **get_scores(ranking_outputs)
+# pae=pae,
+# pde=pde,
+# pae_binder=pae_binder,
+# pae_target=pae_target,
+# pae_interaction_total=pae_interaction_total,
+# chain_pair_pae_min=chain_pair_pae_min,
+# ranking_score=ranking_score,
 
 def get_scores(ranking_data: SampleRanking) -> dict[str, np.ndarray]:
     scores = {
         "aggregate_score": ranking_data.aggregate_score,
-        "ptm": ranking_data.ptm_scores.complex_ptm,
-        "iptm": ranking_data.ptm_scores.interface_ptm,
+        "complex_ptm": ranking_data.ptm_scores.complex_ptm,
+        "interface_ptm": ranking_data.ptm_scores.interface_ptm,
         "per_chain_ptm": ranking_data.ptm_scores.per_chain_ptm,
         "per_chain_pair_iptm": ranking_data.ptm_scores.per_chain_pair_iptm,
         "has_inter_chain_clashes": ranking_data.clash_scores.has_inter_chain_clashes,
         "chain_chain_clashes": ranking_data.clash_scores.chain_chain_clashes,
+        "complex_plddt": ranking_data.plddt_scores.complex_plddt, #! added
+        "per_chain_plddt": ranking_data.plddt_scores.per_chain_plddt, #! added
+        "per_atom_plddt": ranking_data.plddt_scores.per_atom_plddt, #! added
     }
     return {k: v.cpu().numpy() for k, v in scores.items()}
