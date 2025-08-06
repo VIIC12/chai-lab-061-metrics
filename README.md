@@ -64,8 +64,8 @@ To get the best performance, we recommend running the model with MSAs. The follo
 python examples/msas/predict_with_msas.py
 ```
 
-### Metrics
-*!The script assumes, that the binder chain is the first chain in the FASTA file!*
+## Metrics
+**The script assumes, that the binder chain is the first chain in the FASTA file!**
 
 The script writes also PDB file and writes the follwing metrics for each PDB/CIF file in the respective *.npz file:
 - aggregate_score
@@ -96,12 +96,28 @@ The script writes also PDB file and writes the follwing metrics for each PDB/CIF
 - pae (2D array)
 - pde (2D array)
 
+### Get best model
+The best model is the one with the highest aggregate score. You can get it like this:
+```bash
+# Find and extract the model index from the best_npz filename
+FOLD_OUTPUT_NPZ=$(find "${FOLD_OUTPUT_PATH}" -name "*.npz" -print0 | xargs -0 bash -c 'for f; do echo $(python3 -c "import numpy as np; print(np.load(\"$f\")[\"aggregate_score\"])" 2>/dev/null) "$f"; done' _ | sort -rn | head -n1 | cut -d' ' -f2-)
+
+model_idx=$(echo "$FOLD_OUTPUT_NPZ" | sed -n 's/.*model_idx_\([0-9]\+\).*/\1/p')
+
+FOLD_OUTPUT_PDB="${FOLD_OUTPUT_PATH}/pred.model_idx_${model_idx}.pdb"
+```
+
 ### Calculate ChaiAI metrics
-- The calc_chaiai_metrics.py script calculates the ChaiAI metrics and prints them as json. The script does not print all metrics (e.g. not pae and pde arrays).
+- The `metrics/calc_chaiai_metrics.py` script calculates the ChaiAI metrics and prints them as json. The script does not print all metrics (e.g. not pae and pde arrays).
+```bash
+python metrics/calc_chaiai_metrics.py ${FOLD_OUTPUT_NPZ} ${FOLD_OUTPUT_PDB} --output ${RESULTS_OUTPUT_PATH} --plot --uid 1
+```
+
 - Flags:
-	- --save: Save the metrics as a json file. If not provided, the metrics are printed to the console.
-	- --plot: Plot the PAE and PDE maps.
-	- --output_dir: Output directory. If not provided, the directory of the *.npz file is used.
+	- `--save`: Save the metrics as a json file. If not provided, the metrics are printed to the console.
+	- `--plot`: Plot the PAE and PDE maps.
+	- `--output_dir`: Output directory. If not provided, the directory of the *.npz file is used.
+	- `--uid`: Optional unique identifier to add to plot filename.
 
 For further instructions, see `"How can MSAs be provided to Chai-1?"` below.
 

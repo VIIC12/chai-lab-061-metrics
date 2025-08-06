@@ -1007,7 +1007,7 @@ def run_folding_on_context(
         aggregate_score = ranking_outputs.aggregate_score.item()
         print(f"Score={aggregate_score:.4f}, writing output to {cif_out_path}")
 
-        # use 0-100 scale for pLDDT in pdb outputs
+        # use 0-100 scale for pLDDT in cif outputs
         scaled_plddt_scores_per_atom = 100 * plddt_scores_atom[idx : idx + 1]
 
         save_to_cif(
@@ -1033,20 +1033,20 @@ def run_folding_on_context(
         # Ranking score complex, DONE
         scores = get_scores(ranking_outputs)
 
-        ranking_score_complex = (
-            0.2 * scores["complex_ptm"]
-            + 0.8 * scores["interface_ptm"]
-            + 0.5 * fraction_disordered_complex
-            - 100 * scores["has_inter_chain_clashes"].astype(float)
-        )
+        # ranking_score_complex = (
+        #     0.2 * scores["complex_ptm"]
+        #     + 0.8 * scores["interface_ptm"]
+        #     + 0.5 * fraction_disordered_complex
+        #     - 100 * float(np.any(scores["chain_chain_clashes"] > 0))
+        # )
 
-        # TODO Clashed score could be optimized
-        ranking_score_binder = (
-            0.2 * scores["per_chain_ptm"][0][binder_chain_index]
-            + 0.8 * scores["interface_ptm"]
-            + 0.5 * fraction_disordered_binder
-            - 100 * scores["has_inter_chain_clashes"].astype(float)
-        )
+        # TODO Clashed score could be optimized, but we do not get has_clash from binder only, we calculate that in the anaylse script
+        # ranking_score_binder = (
+        #     0.2 * scores["per_chain_ptm"][0][binder_chain_index]
+        #     + 0.8 * scores["interface_ptm"]
+        #     + 0.5 * fraction_disordered_binder
+        #     - 100 * float(np.any(scores["chain_chain_clashes"] > 0))
+        # )
 
         #! iptm_ptm
         iptm_ptm = scores["complex_ptm"] + scores["interface_ptm"]
@@ -1069,7 +1069,7 @@ def run_folding_on_context(
         pde = pde_scores[idx].cpu().numpy()
         binder_length = chain_lengths[0]
         
-        # Calculate mean PAE for binder and all targets
+        # Calculate mean PDE for binder and all targets
         pde_binder = np.mean(pde[:binder_length, :binder_length])
         pde_targets = np.mean(pde[binder_length:, binder_length:])
 
@@ -1086,8 +1086,8 @@ def run_folding_on_context(
                  target_pae_global_min=target_pae_global_min,
                  pde_binder=pde_binder,
                  pde_targets=pde_targets,
-                 ranking_score_complex=ranking_score_complex,
-                 ranking_score_binder=ranking_score_binder,
+                 #ranking_score_complex=ranking_score_complex,
+                 #ranking_score_binder=ranking_score_binder,
                  fraction_disordered_complex=fraction_disordered_complex,
                  fraction_disordered_binder=fraction_disordered_binder,
                  pae=pae,
